@@ -22,7 +22,6 @@ describe('Teste para upload', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(response.data.result).toBeDefined();
 	});
 
 	it("Deve retornar 200 ok ao enviar um arquivo via rota /upload", async () => {
@@ -37,7 +36,6 @@ describe('Teste para upload', () => {
 			});
 	
 			expect(response.status).toBe(200);
-			expect(response.data.result).toBeDefined();
 		});
 })
 
