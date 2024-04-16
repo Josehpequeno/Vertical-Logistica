@@ -1,4 +1,11 @@
 import express, { Request, Response } from 'express';
+import fs from "fs";
+
+import multer from 'multer';
+
+// configurando multer para armazenamento em memória
+const storage = multer.memoryStorage();
+const upload = multer({storage: storage})
 
 const router = express.Router();
 
@@ -8,6 +15,7 @@ const router = express.Router();
  *   post:
  *     summary: Receber arquivo
  *     description: Endpoint para receber um arquivo
+ *     tags: [Upload]
  *     requestBody:
  *       required: true
  *       content:
@@ -22,12 +30,16 @@ const router = express.Router();
  *       '200':
  *         description: Arquivo recebido com sucesso
  */
-router.post("/upload", (req: Request, res: Response) => {
-	const file = req.body.file;
+router.post("/upload", upload.single('file'),(req: Request, res: Response) => {
+	if (!req.file) {
+	    console.error("Arquivo não fornecido");
+        return res.status(400).json({ error: "Arquivo não fornecido" });
+	}
 
-	const processedData = `O arquivo ${file} foi recebido`;
+	const fileContent = req.file.buffer.toString('utf8');
+	console.log('Conteúdo do arquivo:', fileContent);
 
-	res.json({result: processedData});
+	res.status(200).json({messsage: 'Conteúdo do arquivo lido com sucesso'});
 });
 
 

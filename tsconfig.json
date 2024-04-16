@@ -5,7 +5,9 @@
     "outDir": "./dist",
     "esModuleInterop": true,
     "strict": true,
-     "allowImportingTsExtensions": true
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules"]
 }

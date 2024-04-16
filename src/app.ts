@@ -1,11 +1,13 @@
-import express, { Request, Response} from 'express';
+import express from 'express';
 import swaggerUi from 'swagger-ui-express';
 import * as swaggerJsdoc from "swagger-jsdoc";
 import { Options } from 'swagger-jsdoc';
-import routes from './routes/routes.ts';
+import dotenv from "dotenv";
+import routes from './routes/routes';
+
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // middlewares
 app.use(express.json());
@@ -18,7 +20,11 @@ const options: Options = {
 		info: {
 			title: 'vertical-logistica',
 			version: '1.0.0',
-			description: 'Desafio tecnico'
+			description: 'Desafio tecnico',
+			host: "localhost:3000",
+			basePath: "/",
+			consumes: ['application/json', "multipart/form-data"],
+		    produces: ['application/json'],
 		}
 	},
 	apis: ['./src/routes/*.ts']
