@@ -49,6 +49,7 @@ router.post("/upload", upload.single('file'),(req: Request, res: Response) => {
  *   get:
  *     summary: Obter dados
  *     description: Endpoint para obter dados
+ *     tags: [GetData]
  *     responses:
  *       '200':
  *         description: Dados obtidos com sucesso
