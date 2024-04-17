@@ -23,7 +23,6 @@ jobs:
         ports:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-    
 
     steps:
       - name: Checkout do código
@@ -36,6 +35,16 @@ jobs:
 
       - name: Instalar dependências
         run: npm ci
+
+      - name: Criar arquivo .env
+        run: |
+          echo "DB_HOST=localhost" > .env
+          echo "PORT=3000" >> .env
+          echo "DB_PORT=5432" >> .env
+          echo "DB_USERNAME=postgres" >> .env
+          echo "DB_PASSWORD=postgres" >> .env
+          echo "DB_DATABASE=verticalLogistica" >> .env 
+          echo "DB_TYPE=postgres" >> .env
 
       - name: Compilar TypeScript
         run: npm run build --if-present

@@ -1,5 +1,4 @@
-import dotenv from "dotenv";
-dotenv.config(); 
+import 'dotenv/config';
 import express from 'express';
 import swaggerUi from 'swagger-ui-express';
 import * as swaggerJsdoc from "swagger-jsdoc";
@@ -52,7 +51,7 @@ AppDataSource.initialize()
 
   })
 .catch((error: Error) => {
-  console.error('Erro ao inicializar servidor:', error, ">", process.env.DB_PASSWORD);
+  console.error('Erro ao inicializar servidor:', error);
 });
 
 export default app;
