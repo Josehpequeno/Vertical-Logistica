@@ -12,6 +12,7 @@ describe("Teste de conexão com o banco de dados", () => {
 			await AppDataSource.initialize();
 			expect(true).toBeTruthy();
 		} catch (error) {
+			console.log("process env", process.env);
 			throw new Error(`Erro ao conectar ao banco de dados: ${error}`);
 		}
 	});
