@@ -1,25 +1,22 @@
-import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
+import { Entity, PrimaryColumn, Column, ManyToMany, JoinTable, ManyToOne } from "typeorm";
+import { Product } from "./product.entity";
+import { User } from "./user.entity";
 
 @Entity()
-export class OrderEntity {
-	@PrimaryGeneratedColumn()
+export class Order {
+	@PrimaryColumn({unique: true})
 	id: number;
 
-	@Column()
-	userId: number;
+	@Column('decimal', {precision: 2})
+	total: number;
 
-	@Column({length: 45})
-	nome: string;
+	@Column({type: "date"})
+	date: Date;
 
-	@Column()
-	pedidoId: number;
+	@ManyToMany((type) => Product)
+	@JoinTable()
+	products: Product[];	
 
-	@Column()
-	produtoId: number;
-
-	@Column('decimal', {precision: 12, scale:2})
-	valorProduto: number;
-
-	@Column('int')
-	dataCompra: number; // formato: yyyymmdd
+	@ManyToOne(() => User, (user) => user.orders)
+	user: User;	
 }

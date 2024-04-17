@@ -1,6 +1,5 @@
 import "reflect-metadata";
 import { DataSource } from "typeorm";
-import { OrderEntity } from "../entities/order.entity";
 
 export const AppDataSource = new DataSource({
   type: "postgres",
@@ -11,7 +10,9 @@ export const AppDataSource = new DataSource({
   database: process.env.DB_DATABASE,
   synchronize: true,
   logging: false,
-  entities: [OrderEntity],
+  entities: [process.env.NODE_ENV === "prod" 
+  		? "dist/**/*.entity{,.js}"
+  		: "src/**/*.entity{.ts,.js}"],
   subscribers: [],
   migrations: [],
 })
