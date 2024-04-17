@@ -51,7 +51,7 @@ AppDataSource.initialize()
 
   })
 .catch((error: Error) => {
-  console.error('Erro ao inicializar servidor:', error);
+  console.error('Erro ao inicializar servidor:', error, ">", process.env.DB_PASSWORD);
 });
 
 export default app;
