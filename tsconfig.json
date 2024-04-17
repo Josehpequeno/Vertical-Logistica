@@ -9,6 +9,10 @@
     "forceConsistentCasingInFileNames": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
+    "lib": ["es6"],
+    "moduleResolution": "node",  
+    "sourceMap": true,
+    "strictPropertyInitialization": false,    
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules"]

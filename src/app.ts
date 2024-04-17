@@ -1,17 +1,19 @@
+import 'dotenv/config';
 import express from 'express';
 import swaggerUi from 'swagger-ui-express';
 import * as swaggerJsdoc from "swagger-jsdoc";
 import { Options } from 'swagger-jsdoc';
-// import dotenv from "dotenv";
-import 'dotenv/config';
 import routes from './routes/routes';
-//import { initDB } from "./utils/database";
-
+//import {createConnection} from "typeorm";
+import { AppDataSource } from "./utils/database";
 const app = express();
 
 //initDB()
+//createConnection().then(async connection => {
  // .then(() => {
-   // console.log('Conexão com o banco de dados estabelecida com sucesso.');
+AppDataSource.initialize()
+  .then(async () => {
+    console.log('Conexão com o banco de dados estabelecida com sucesso.');
 	 
 	const PORT = process.env.PORT || 3000;
 
@@ -47,10 +49,10 @@ const app = express();
 		console.log(`Servidor rodando na porta ${PORT}`);
 	});
 
-//  })
-//	.catch((error: Error) => {
-//	  console.error('Erro ao inicializar conexão com o banco de dados:', error);
-//	  process.exit(1); // Encerrar o aplicativo se houver erro na inicialização do banco de dados
-//	});
+  })
+	.catch((error: Error) => {
+	  console.error('Erro ao inicializar servidor:', error);
+	 // process.exit(1); // Encerrar o aplicativo se houver erro na inicialização do banco de dados
+	});
 
 export default app;

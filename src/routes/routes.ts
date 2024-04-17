@@ -37,7 +37,19 @@ router.post("/upload", upload.single('file'),(req: Request, res: Response) => {
 	}
 
 	const fileContent = req.file.buffer.toString('utf8');
-	console.log('Conteúdo do arquivo:', fileContent);
+	
+	const lines = fileContent.split("\n");
+	for (let line of lines) {
+		console.log("linha do arquivo", line);
+		console.log("dados:");
+		console.log("id do usuário", line.slice(0,10));
+		console.log("nome", line.slice(10, 10+45));
+		console.log("id pedido", line.slice(55, 55+10));
+		console.log("id produto", line.slice(65, 65+10));
+		console.log("valor do produto", line.slice(75, 75+12));
+		console.log("data compra", line.slice(87, 87+8));
+		break;
+	}
 
 	res.status(200).json({messsage: 'Conteúdo do arquivo lido com sucesso'});
 });
