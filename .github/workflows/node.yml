@@ -43,5 +43,16 @@ jobs:
       - name: Start Server
         run: npm start &
       
+      - name: Aguardar servidor iniciar
+        run: sleep 5s
+
+      - name: Configurar variáveis de ambiente
+        run: |
+          export DB_HOST=localhost
+          export DB_PORT=5432
+          export DB_USERNAME=postgres
+          export DB_PASSWORD=password
+          export DB_DATABASE=verticalLogistica
+      
       - name: Executar testes
         run: npm test
