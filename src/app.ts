@@ -50,10 +50,8 @@ AppDataSource.initialize()
 	});
 
   })
-	.catch((error: Error) => {
-	  console.error('Erro ao inicializar servidor:', error);
-	  console.log("process env", process.env);
-	 // process.exit(1); // Encerrar o aplicativo se houver erro na inicialização do banco de dados
-	});
+.catch((error: Error) => {
+  console.error('Erro ao inicializar servidor:', error);
+});
 
 export default app;

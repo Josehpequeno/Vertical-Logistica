@@ -5,6 +5,16 @@ on:
     branches:
       - main 
 
+env:
+  PORT:3000
+  NODE_ENV:dev
+  DB_HOST:localhost
+  DB_PORT:5432
+  DB_USERNAME:postgres
+  DB_PASSWORD:postgres
+  DB_DATABASE:verticalLogistica
+  DB_TYPE:postgres
+
 jobs:
   build:
     strategy:
@@ -39,15 +49,6 @@ jobs:
 
       - name: Compilar TypeScript
         run: npm run build --if-present
-
-      - name: Configurar variáveis de ambiente
-        run: |
-          export PORT=3000
-          export DB_HOST=localhost
-          export DB_PORT=5432
-          export DB_USERNAME=postgres
-          export DB_PASSWORD="password"
-          export DB_DATABASE=verticalLogistica
           
       - name: Start Server
         run: npm start &
