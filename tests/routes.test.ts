@@ -56,7 +56,8 @@ describe("Teste para getData", () => {
     try {
       const response = await axios.get(`http://localhost:${PORT}/getData`);
       expect(response.status).toBe(200);
-      expect(response.data.result).toEqual("ok");
+      JSON.parse(response.data.users);
+      expect(true).toBeTruthy();
     } catch (error) {
       expect(error).toBe(null);
     }

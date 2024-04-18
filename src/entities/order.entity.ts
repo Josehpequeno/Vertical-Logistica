@@ -12,7 +12,7 @@ import { User } from "./user.entity";
 @Entity()
 export class Order {
   @PrimaryColumn({ unique: true })
-  id: number;
+  order_id: number;
 
   @Column({ type: "date" })
   date: Date;

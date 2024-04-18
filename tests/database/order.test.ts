@@ -4,12 +4,12 @@ import { Product } from "../../src/entities/product.entity";
 import { Order } from "../../src/entities/order.entity";
 
 const MOCK_PRODUCT = {
-	id: 1,
+	product_id: 1,
 	value: 12.78
 };
 
 const MOCK_ORDER = {
-  id: 1,
+  order_id: 1,
   date: "20201201",
   product_id: 1,
   products: [] as Product[]
@@ -21,7 +21,7 @@ beforeAll( async () => {
 });
 
 afterAll( async () => {
-  await AppDataSource.manager.delete(Product, MOCK_PRODUCT.id);
+  await AppDataSource.manager.delete(Product, MOCK_PRODUCT.product_id);
 	await AppDataSource.close();
 });
 
@@ -29,7 +29,7 @@ describe.skip("Teste com pedidos em banco de dados", () => {
   it("criar pedido", async () => {
     try {
       const product = await AppDataSource.manager.findOneByOrFail(Product, {
-          id: MOCK_ORDER.product_id
+          product_id: MOCK_ORDER.product_id
       });
       expect(product).not.toBeNull();
       MOCK_ORDER.products.push(product);
@@ -43,7 +43,7 @@ describe.skip("Teste com pedidos em banco de dados", () => {
 
   it("deleta pedido", async () => {
       try {
-        const orderDelete = await AppDataSource.manager.delete(Order, MOCK_ORDER.id);
+        const orderDelete = await AppDataSource.manager.delete(Order, MOCK_ORDER.order_id);
         expect(orderDelete.affected).toBe(1);
       } catch (error) {
         throw new Error(`Erro ao remover pedido no banco de dados: ${error}`);

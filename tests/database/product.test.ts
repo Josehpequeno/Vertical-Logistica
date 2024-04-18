@@ -3,7 +3,7 @@ import { AppDataSource } from "../../src/utils/database";
 import { Product } from "../../src/entities/product.entity"
 
 const MOCK_PRODUCT = {
-	id: 1,
+	product_id: 1,
 	value: 12.78
 }
 
@@ -27,7 +27,7 @@ describe.skip("Teste com products em banco de dados", () => {
 
   it("deleta produto", async () => {
       try {
-        const productDelete = await AppDataSource.manager.delete(Product, MOCK_PRODUCT.id);
+        const productDelete = await AppDataSource.manager.delete(Product, MOCK_PRODUCT.product_id);
         expect(productDelete.affected).toBe(1);
       } catch (error) {
         throw new Error(`Erro ao remover produto no banco de dados: ${error}`);
