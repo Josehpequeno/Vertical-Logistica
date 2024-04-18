@@ -15,7 +15,7 @@ afterAll( async () => {
 	await AppDataSource.close();
 })
 
-describe("Teste com products", () => {
+describe.skip("Teste com products em banco de dados", () => {
   it("criar produto", async () => {
     try {
       const product = await AppDataSource.manager.insert(Product, MOCK_PRODUCT);

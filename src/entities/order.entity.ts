@@ -14,13 +14,10 @@ export class Order {
   @PrimaryColumn({ unique: true })
   id: number;
 
-  @Column("decimal", { precision: 2 })
-  total: number;
-
   @Column({ type: "date" })
   date: Date;
 
-  @ManyToMany((type) => Product)
+  @ManyToMany(() => Product)
   @JoinTable()
   products: Product[];
 

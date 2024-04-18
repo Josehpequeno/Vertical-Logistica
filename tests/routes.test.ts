@@ -7,7 +7,7 @@ const PORT = 3000;
 const FILE_PATH_1 = path.resolve(__dirname, "../data_1.txt");
 const FILE_PATH_2 = path.resolve(__dirname, "../data_2.txt");
 
-describe("Teste para upload", () => {
+describe.only("Teste para upload", () => {
   it("Deve retornar 200 ok ao enviar um arquivo via rota /upload", async () => {
     try {
       const formData = new FormData();

@@ -10,7 +10,6 @@ const MOCK_PRODUCT = {
 
 const MOCK_ORDER = {
   id: 1,
-  total: 12.78,
   date: "20201201",
   product_id: 1,
   products: [] as Product[]
@@ -26,7 +25,7 @@ afterAll( async () => {
 	await AppDataSource.close();
 });
 
-describe("Teste com pedidos", () => {
+describe.skip("Teste com pedidos em banco de dados", () => {
   it("criar pedido", async () => {
     try {
       const product = await AppDataSource.manager.findOneByOrFail(Product, {

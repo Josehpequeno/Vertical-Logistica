@@ -5,6 +5,7 @@ export class Product {
   @PrimaryColumn({ unique: true })
   id: number;
 
-  @Column("decimal", { precision: 2 })
+  // tamanho máximo do número com 12 digitos e 2 digitos depois da linha.
+  @Column("decimal", { precision: 12, scale: 2 })
   value: number;
 }
