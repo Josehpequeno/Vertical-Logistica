@@ -7,7 +7,7 @@ const PORT = 3000;
 const FILE_PATH_1 = path.resolve(__dirname, "../data_1.txt");
 const FILE_PATH_2 = path.resolve(__dirname, "../data_2.txt");
 
-describe.skip("Testes para rotas", () => {
+describe("Testes para rotas", () => {
   it("Deve retornar 200 OK ao enviar arquivos via rota /upload", async () => {
     try {
       const formData1 = new FormData();
@@ -31,19 +31,21 @@ describe.skip("Testes para rotas", () => {
 
       expect(response1.status).toBe(200);
       expect(response2.status).toBe(200);
-    } catch (error) {
-      expect(error).toBe(null);
+    } catch (error: any) {
+      console.error(`Erro no upload de arquivos ${error}`);
+      expect(error.message).toBe(null);
     }
   });
 
-  it("Deve retornar 200 OK ao acessar a rota /getData", async () => {
+  it("Deve retornar 200 OK ao acessar a rota /list", async () => {
     try {
-      const response = await axios.get(`http://localhost:${PORT}/getData`);
+      const response = await axios.get(`http://localhost:${PORT}/list`);
       expect(response.status).toBe(200);
       JSON.parse(response.data.users);
       expect(true).toBeTruthy();
-    } catch (error) {
-      expect(error).toBe(null);
+    } catch (error: any) {
+      console.error(`Erro no upload de arquivos ${error}`);
+      expect(error.message).toBe(null);
     }
   });
 });

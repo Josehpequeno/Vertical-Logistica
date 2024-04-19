@@ -1,0 +1,44 @@
+generator client {
+	provider = "prisma-client-js"
+}
+
+datasource db {
+	provider = "postgresql"
+	url = env("DATABASE_URL")
+}
+
+model Product {
+	product_id Int @id @unique(map: "product_id_pkey")
+	value Float
+
+	@@map("products")
+}
+
+model ProductOrder {
+	id Int @id @unique(map: "productorder_id_pkey") @default(autoincrement())
+	product_id Int 
+	value Float
+	order_id Int
+	order Order @relation("product_orders", fields: [order_id], references: [order_id], onDelete: Cascade)
+
+	@@map("product_orders")
+}
+
+model Order {
+	order_id Int @id @unique(map: "order_id_pkey")
+	date String @db.VarChar(10)
+	total Float
+	products    ProductOrder[] @relation("product_orders")
+	user_id Int
+	user        User     @relation("orders", fields: [user_id], references: [user_id], onDelete: Cascade)
+
+	@@map("orders")
+}
+
+model User {
+	user_id Int @id @unique(map: "user_id_pkey")
+	name String  @db.VarChar(50)
+	orders Order[] @relation("orders")
+
+	@@map("users")
+}

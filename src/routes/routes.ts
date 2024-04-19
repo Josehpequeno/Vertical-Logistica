@@ -8,8 +8,8 @@ import { User } from "../entities/user.entity";
 import fs from "fs";
 import path from "path";
 import * as readline from "readline";
-// configurando multer para armazenamento em memória
 
+// configurando multer para armazenamento em arquivo
 const uploadDirectory = 'uploads';
 if (!fs.existsSync(uploadDirectory)) {
   fs.mkdirSync(uploadDirectory);
@@ -74,20 +74,10 @@ router.post("/upload", upload.single("file"), async (req: Request, res: Response
       const product_id = Number(line.slice(65, 75));
       const product_value = Number(line.slice(75, 87));
       const order_date = line.slice(87, 87 + 8);
-    //    console.log("line: ",line+ "\n", user_id, user_name, order_id, product_id, product_value,order_date)
       const productInLine = {
         product_id,
         value: product_value
       };
-      let product = new Product();
-      product.product_id = product_id;
-      product.value = product_value;
-      await AppDataSource.manager.upsert(Product, [product], ["product_id"]);
-
-      let productOrder = new ProductOrder();
-      productOrder.product_id = product_id;
-      productOrder.value = product_value;
-      productOrder = await AppDataSource.manager.save(productOrder);
 
       const year = parseInt(order_date.substring(0, 4));
       const month = parseInt(order_date.substring(4, 6)) - 1; // Mês é base 0 (0-11)
@@ -98,91 +88,103 @@ router.post("/upload", upload.single("file"), async (req: Request, res: Response
         date: new Date(year, month, day),
         products: [] as ProductOrder[]
       };
-      
-      const orderExistsInDB = await AppDataSource.manager.existsBy(Order, {
-        order_id
-      });
-      let order: Order;
-      if (!orderExistsInDB) {
-        try {
-          order = new Order();
-          order.order_id = order_id;
-          order.date = orderInLine.date;
-          orderInLine.products.push(productOrder);
-          order.products = orderInLine.products;
-          order.total = 0;
-          order = await AppDataSource.manager.save(order);      
-        } catch(err: any) {
-          console.error("erro acontece aqui");
-          console.error("orderExistsInDB", orderExistsInDB);
-          console.error("order_id", order_id);
-          const orderExistsInDBAfterIf = await AppDataSource.manager.existsBy(Order, {
-                      order_id
-          });    
-          console.error("orderExistsInDBAfterIf", orderExistsInDBAfterIf);
-          throw new Error(err.message);
-        }
-      } else {
-        order = await AppDataSource.manager.findOne(Order, {
-          where: {
-            order_id
-          },
-          relations: ['products']
-        }) as Order;
-        
-        /*const ordersProductIds = new Set(order?.products.map(product => product.product_id));
-        const productExistInOrderproducts = ordersProductIds.has(product_id);
-        if(!productExistInOrderproducts) {
-          order!.products.push(product);
-        } */
-        order.products.push(productOrder);
-        order = await AppDataSource.manager.save(order);
-      }
 
       const userInLine = {
         user_id,
         name: user_name,
         orders: [] as Order[]
       };
-      const userExistsInDB = await AppDataSource.manager.existsBy(User, {
-        user_id
-      });
-      let user: User;
-      if(!userExistsInDB) {
-        user = new User();
-        user.user_id = user_id;
-        user.name = user_name;
-        userInLine.orders.push(order);
-        user.orders = userInLine.orders;
-        await AppDataSource.manager.save(user);
-      } else {
-        user = await AppDataSource.manager.findOne(User, {
+      
+      await AppDataSource.manager.transaction(async transactionalEntityManager => {
+        let product = new Product();
+        product.product_id = product_id;
+        product.value = product_value;
+        await transactionalEntityManager.upsert(Product, [product], ["product_id"]);
+
+        let productOrder = new ProductOrder();
+        productOrder.product_id = product_id;
+        productOrder.value = product_value;
+        productOrder = await transactionalEntityManager.save(productOrder);
+        
+
+        let order: Order;
+        const orderExistsInDB = await transactionalEntityManager.findOne(Order, {
+          where: {
+            order_id
+          },
+          relations: ['products']
+        });
+        if (!orderExistsInDB) {
+          try {
+            order = new Order();
+            order.order_id = order_id;
+            order.date = orderInLine.date;
+            orderInLine.products.push(productOrder);
+            order.products = orderInLine.products;
+            order.total = productOrder.value;
+            order = await transactionalEntityManager.save(order);      
+          } catch(err: any) {
+            console.error("erro acontece aqui", err.message);
+            console.error("orderExistsInDB", orderExistsInDB);
+            console.error("order_id", order_id);
+            const orderExistsInDBAfterIf = await transactionalEntityManager.existsBy(Order, {
+                        order_id
+            });    
+            console.error("orderExistsInDBAfterIf", orderExistsInDBAfterIf);
+            throw new Error(err.message);
+          }
+        } else {
+          /*const ordersProductIds = new Set(order?.products.map(product => product.product_id));
+          const productExistInOrderproducts = ordersProductIds.has(product_id);
+          if(!productExistInOrderproducts) {
+            order!.products.push(product);
+          } */
+          try {
+            orderExistsInDB.products.push(productOrder);
+            order = await transactionalEntityManager.save(orderExistsInDB);
+          } catch (error: any) {
+            console.error("erro acontece ao registrar order existente novamente", line, JSON.stringify(orderExistsInDB.products));
+            throw new Error(error.message);
+          }
+        }
+      
+        const userExistsInDB = await transactionalEntityManager.findOne(User, {
           where: {
             user_id
           },
           relations: ['orders']
-        }) as User;
-        const userOrderIds = new Set(user.orders.map(order => order.order_id));
-        const orderExistInUserOrders = userOrderIds.has(order_id);
-        if(!orderExistInUserOrders) {
-          user.orders.push(order);
-        } 
-        await AppDataSource.manager.save(user);
-      }
+        });
+        let user: User;
+        if(!userExistsInDB) {
+          user = new User();
+          user.user_id = user_id;
+          user.name = user_name;
+          userInLine.orders.push(order);
+          user.orders = userInLine.orders;
+          await transactionalEntityManager.save(user);
+        } else {
+          const userOrderIds = new Set(userExistsInDB.orders.map(order => order.order_id));
+          const orderExistInUserOrders = userOrderIds.has(order_id);
+          if(!orderExistInUserOrders) {
+            userExistsInDB.orders.push(order);
+          } 
+          await transactionalEntityManager.save(userExistsInDB);
+        }
+      });
     });
 
     rl.on('close', () => {
       fs.unlinkSync(filePath);
+      const endTime = Date.now();
+      const elapsedTime = endTime - startTime;
+      console.log(`Tempo de processamento: ${elapsedTime}ms`);
+      res.status(200).json({ message: "Conteúdo do arquivo lido com sucesso" });
     });
   
     rl.on('error', (err: Error) => {
       throw new Error(err.message);
     });
-      
-    const endTime = Date.now();
-    const elapsedTime = endTime - startTime;
-    console.log(`Tempo de processamento: ${elapsedTime}ms`);
-    res.status(200).json({ message: "Conteúdo do arquivo lido com sucesso" });
+    
   } catch (error) {
     console.error("Erro durante o processamento do arquivo:", error);
     res.status(500).json({ error: "Erro durante o processamento do arquivo" });
@@ -208,12 +210,16 @@ router.post("/upload", upload.single("file"), async (req: Request, res: Response
  *                   type: string
  */
 router.get("/list", async (req: Request, res: Response) => {
-  const result = "ok";
-  const users = await AppDataSource.manager.find(User, {
-    relations: ['orders', 'orders.products']
-  });
+  try {
+    const users = await AppDataSource.manager.find(User, {
+      relations: ['orders', 'orders.products']
+    });
 
-  res.json({ users });
+    res.status(200).json({ users });
+  } catch (error: any) {
+    console.error("Erro a busca de dados:", error);
+    res.status(500).json({ error: "Erro durante o processamento do arquivo" });
+  }
 });
 
 export default router;

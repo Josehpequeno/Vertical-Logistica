@@ -1,102 +1,134 @@
 import "dotenv/config";
-import { AppDataSource } from "../../src/utils/database";
-import { ProductOrder } from "../../src/entities/productOrder.entity";
-import { Order } from "../../src/entities/order.entity";
-import { User } from "../../src/entities/user.entity";
+import { prismaContext } from "../../src/utils/prismaContext";
+import { User } from '@prisma/client';
 
 const MOCK_PRODUCT_ORDER = {
-  id: 1,
-	product_id: 1,
+  product_id: 1,
+	order_id: 1,
 	value: 12.78
-};
+}
 
 const MOCK_ORDER = {
-  order_id: 1,
-  date: "20201201",
-  product_id: 1,
-  total: MOCK_PRODUCT_ORDER.value,
-  products: [] as ProductOrder[]
-};
+	order_id: 1,
+	total: 12.78,
+	date: new Date(2020,10,20).toISOString().split('T')[0],
+	user: {
+	  connect: {user_id: 1}
+	}
+}
 
 const MOCK_USER = {
   user_id: 1,
-  name: "Name",
-  order_id: 1,
-  orders: [] as Order[]
+  name: "name"
 }
 
-let userIdExistsInDB = false;
-let orderIdExistsInDB = false;
-const message = "user_id e/ou order_id já está registrado no banco de dados antes do teste";
+let existsInDB: any  = false;
+const message = "order_id ou user_id já registrado em banco antes do teste";
 
-beforeAll( async () => {
-	await AppDataSource.initialize();
-	userIdExistsInDB = await AppDataSource.manager.existsBy(User, {
-	  user_id: MOCK_USER.user_id
-	});
-	orderIdExistsInDB = await AppDataSource.manager.existsBy(Order, {
-		  order_id: MOCK_ORDER.order_id
-	});
-	if (!userIdExistsInDB && !orderIdExistsInDB) {
-    let productOrder = new ProductOrder();
-    productOrder.product_id = MOCK_PRODUCT_ORDER.product_id;
-    productOrder.value = MOCK_PRODUCT_ORDER.value;
-    productOrder = await AppDataSource.manager.save(productOrder);
-    MOCK_PRODUCT_ORDER.id = productOrder.id;
-    MOCK_ORDER.products.push(productOrder);
-    const order = new Order();
-    order.order_id = MOCK_ORDER.order_id;
-    const year = parseInt(MOCK_ORDER.date.substring(0, 4));
-    const month = parseInt(MOCK_ORDER.date.substring(4, 6)) - 1; // Mês é base 0 (0-11)
-    const day = parseInt(MOCK_ORDER.date.substring(6, 8));
-    order.date = new Date(year, month, day);          
-    order.products = MOCK_ORDER.products;
-    order.total = MOCK_ORDER.total;
-    await AppDataSource.manager.save(order);
-  }
+beforeAll(async () => {
+  existsInDB = await prismaContext.order.findUnique({
+    where: {
+      order_id: MOCK_ORDER.order_id
+    }
+  }) || await prismaContext.user.findUnique({
+    where: {
+      user_id: MOCK_USER.user_id
+    }
+  });
 });
 
-afterAll( async () => {
-  if (!userIdExistsInDB && !orderIdExistsInDB) {
-    await AppDataSource.manager.delete(ProductOrder, MOCK_PRODUCT_ORDER.id);
-    await AppDataSource.manager.delete(Order, MOCK_ORDER.order_id);
-  }
-	await AppDataSource.close();
-});
-
-describe("Teste com user em banco de dados", () => {
+describe("Teste com users em banco de dados", () => {
   it("criar user", async () => {
     try {
-      if (!userIdExistsInDB && !orderIdExistsInDB) { 
+      if (existsInDB) {
         throw new Error(message);
       }
-          
-      const order = await AppDataSource.manager.findOneByOrFail(Order, {
-         order_id: MOCK_USER.order_id
+      const user = await prismaContext.user.create({
+        data: MOCK_USER
       });
-      MOCK_USER.orders.push(order);
-      let user = new User();
-      user.user_id = MOCK_USER.user_id;
-      user.name = MOCK_USER.name;
-      user.orders = MOCK_USER.orders
-      user = await AppDataSource.manager.save(user);
-      expect(user).toEqual(MOCK_USER);
+      const { user_id, name } = user;
+      expect(name).toEqual(MOCK_USER.name);
+      expect(user_id).toEqual(MOCK_USER.user_id);
     } catch (error: any) {
-      expect(error.message).toBe(message);
       console.error(`Erro ao criar user no banco de dados: ${error}`);
+      expect(error.message).toBe(message);
     }
   });
 
-  it("deleta user", async () => {
+  it("criar order", async () => {
       try {
-        if (!userIdExistsInDB && !orderIdExistsInDB) { 
+        if (existsInDB) {
           throw new Error(message);
-        }    
-        const userDelete = await AppDataSource.manager.delete(User, MOCK_USER.user_id);
-        expect(userDelete.affected).toBe(1);
+        }
+        const order = await prismaContext.order.create({
+          data: MOCK_ORDER
+        });
+        const { order_id, total } = order;
+        expect(total).toEqual(MOCK_ORDER.total);
+        expect(order_id).toEqual(MOCK_ORDER.order_id);
       } catch (error: any) {
+        console.error(`Erro ao criar order no banco de dados: ${error}`);
         expect(error.message).toBe(message);
+      }
+  });
+
+  it("criar productOrder", async () => {
+        try {
+          if (existsInDB) {
+            throw new Error(message);
+          }
+          const productOrder = await prismaContext.productOrder.create({
+            data: MOCK_PRODUCT_ORDER
+          });
+          const { order_id, value, product_id } = productOrder;
+          expect(value).toEqual(MOCK_PRODUCT_ORDER.value);
+          expect(product_id).toEqual(MOCK_PRODUCT_ORDER.product_id);
+          expect(order_id).toEqual(MOCK_PRODUCT_ORDER.order_id);
+        } catch (error: any) {
+          console.error(`Erro ao criar productOrder no banco de dados: ${error}`);
+          expect(error.message).toBe(message);
+        }
+    });
+
+  it("procurar user", async () => {
+      try {
+        if (existsInDB) {
+          throw new Error(message);
+        }
+        const user = await prismaContext.user.findUnique({
+          where: {
+            user_id: MOCK_USER.user_id,
+          },
+          include: {
+            orders: {
+              include: {
+                products: true,
+              },
+            },
+          },
+        }) as User;
+        expect(user).not.toBeNull();
+        const { user_id, name } = user;
+        expect(name).toEqual(MOCK_USER.name);
+        expect(user_id).toEqual(MOCK_USER.user_id);
+      } catch (error: any) {
         console.error(`Erro ao criar user no banco de dados: ${error}`);
+        expect(error.message).toBe(message);
       }
     });
+
+  it("deleta user", async () => {
+    try {
+      if (existsInDB) {
+        throw new Error(message);
+      }
+      const userDelete = await prismaContext.user.deleteMany({
+        where: { user_id: MOCK_USER.user_id }
+      });
+      expect(userDelete.count).toBe(1);
+    } catch (error: any) {
+      console.error(`Erro ao deletar user no banco de dados: ${error}`);
+      expect(error.message).toBe(message);
+    }
+  });
 });
