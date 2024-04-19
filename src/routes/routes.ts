@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from "express";
 import multer from "multer";
 import { AppDataSource } from "../utils/database";
 import { Product } from "../entities/product.entity";
+import { ProductOrder } from "../entities/productOrder.entity";
 import { Order } from "../entities/order.entity";
 import { User } from "../entities/user.entity";
 import fs from "fs";
@@ -81,43 +82,61 @@ router.post("/upload", upload.single("file"), async (req: Request, res: Response
       let product = new Product();
       product.product_id = product_id;
       product.value = product_value;
-      product = await AppDataSource.manager.save(product);
-      
+      await AppDataSource.manager.upsert(Product, [product], ["product_id"]);
+
+      let productOrder = new ProductOrder();
+      productOrder.product_id = product_id;
+      productOrder.value = product_value;
+      productOrder = await AppDataSource.manager.save(productOrder);
+
+      const year = parseInt(order_date.substring(0, 4));
+      const month = parseInt(order_date.substring(4, 6)) - 1; // Mês é base 0 (0-11)
+      const day = parseInt(order_date.substring(6, 8));
+              
       const orderInLine = {
         order_id,
-        date: order_date,
-        products: [] as Product[]
+        date: new Date(year, month, day),
+        products: [] as ProductOrder[]
       };
       
       const orderExistsInDB = await AppDataSource.manager.existsBy(Order, {
         order_id
       });
-      let order: Order | null;
-      
+      let order: Order;
       if (!orderExistsInDB) {
-        order = new Order();
-        order.order_id = order_id;
-        const year = parseInt(order_date.substring(0, 4));
-        const month = parseInt(order_date.substring(4, 6)) - 1; // Mês é base 0 (0-11)
-        const day = parseInt(order_date.substring(6, 8));
-        order.date = new Date(year, month, day);
-        orderInLine.products.push(product);
-        order.products = orderInLine.products;
-        order = await AppDataSource.manager.save(order);      
+        try {
+          order = new Order();
+          order.order_id = order_id;
+          order.date = orderInLine.date;
+          orderInLine.products.push(productOrder);
+          order.products = orderInLine.products;
+          order.total = 0;
+          order = await AppDataSource.manager.save(order);      
+        } catch(err: any) {
+          console.error("erro acontece aqui");
+          console.error("orderExistsInDB", orderExistsInDB);
+          console.error("order_id", order_id);
+          const orderExistsInDBAfterIf = await AppDataSource.manager.existsBy(Order, {
+                      order_id
+          });    
+          console.error("orderExistsInDBAfterIf", orderExistsInDBAfterIf);
+          throw new Error(err.message);
+        }
       } else {
         order = await AppDataSource.manager.findOne(Order, {
           where: {
             order_id
           },
           relations: ['products']
-        });
+        }) as Order;
         
-        const ordersProductIds = new Set(order?.products.map(product => product.product_id));
+        /*const ordersProductIds = new Set(order?.products.map(product => product.product_id));
         const productExistInOrderproducts = ordersProductIds.has(product_id);
         if(!productExistInOrderproducts) {
           order!.products.push(product);
-        } 
-        order = await AppDataSource.manager.save(Order, order!);
+        } */
+        order.products.push(productOrder);
+        order = await AppDataSource.manager.save(order);
       }
 
       const userInLine = {
@@ -128,12 +147,12 @@ router.post("/upload", upload.single("file"), async (req: Request, res: Response
       const userExistsInDB = await AppDataSource.manager.existsBy(User, {
         user_id
       });
-      let user: User | null;
+      let user: User;
       if(!userExistsInDB) {
         user = new User();
         user.user_id = user_id;
         user.name = user_name;
-        userInLine.orders.push(order!);
+        userInLine.orders.push(order);
         user.orders = userInLine.orders;
         await AppDataSource.manager.save(user);
       } else {
@@ -142,11 +161,11 @@ router.post("/upload", upload.single("file"), async (req: Request, res: Response
             user_id
           },
           relations: ['orders']
-        });
-        const userOrderIds = new Set(user?.orders.map(order => order.order_id));
+        }) as User;
+        const userOrderIds = new Set(user.orders.map(order => order.order_id));
         const orderExistInUserOrders = userOrderIds.has(order_id);
         if(!orderExistInUserOrders) {
-          user!.orders.push(order!);
+          user.orders.push(order);
         } 
         await AppDataSource.manager.save(user);
       }
