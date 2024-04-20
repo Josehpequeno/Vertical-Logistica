@@ -4,49 +4,47 @@ import swaggerUi from "swagger-ui-express";
 import * as swaggerJsdoc from "swagger-jsdoc";
 import { Options } from "swagger-jsdoc";
 import routes from "./routes/routes";
-import { AppDataSource } from "./utils/database";
+import { prismaContext } from "./utils/prismaContext";
 const app = express();
 
-AppDataSource.initialize()
-  .then(async () => {
+const PORT = process.env.PORT || 3000;
+
+// middlewares
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+//swagger options
+const options: Options = {
+  swaggerDefinition: {
+    openapi: "3.0.0",
+    info: {
+      title: "vertical-logistica",
+      version: "1.0.0",
+      description: "Desafio tecnico",
+      host: "localhost:3000",
+      basePath: "/",
+      consumes: ["application/json", "multipart/form-data"],
+      produces: ["application/json"]
+    }
+  },
+  apis: ["./src/routes/*.ts"]
+};
+
+const swaggerSpec = swaggerJsdoc.default(options);
+
+// rota da documentação swagger
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+app.use(routes);
+
+app.listen(PORT, async () => {
+  try {
+    await prismaContext.$connect();
     console.log("Conexão com o banco de dados estabelecida com sucesso.");
-
-    const PORT = process.env.PORT || 3000;
-
-    // middlewares
-    app.use(express.json());
-    app.use(express.urlencoded({ extended: true }));
-
-    //swagger options
-    const options: Options = {
-      swaggerDefinition: {
-        openapi: "3.0.0",
-        info: {
-          title: "vertical-logistica",
-          version: "1.0.0",
-          description: "Desafio tecnico",
-          host: "localhost:3000",
-          basePath: "/",
-          consumes: ["application/json", "multipart/form-data"],
-          produces: ["application/json"]
-        }
-      },
-      apis: ["./src/routes/*.ts"]
-    };
-
-    const swaggerSpec = swaggerJsdoc.default(options);
-
-    // rota da documentação swagger
-    app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-
-    app.use(routes);
-
-    app.listen(PORT, () => {
-      console.log(`Servidor rodando na porta ${PORT}`);
-    });
-  })
-  .catch((error: Error) => {
-    console.error("Erro ao inicializar servidor:", error);
-  });
+  } catch (error) {
+    console.log("Erro ao estabelecer conexão com banco de dados:", error);
+  }
+  console.log(`Servidor rodando na porta ${PORT}`);
+});
 
 export default app;

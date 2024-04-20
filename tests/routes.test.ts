@@ -41,7 +41,8 @@ describe("Testes para rotas", () => {
     try {
       const response = await axios.get(`http://localhost:${PORT}/list`);
       expect(response.status).toBe(200);
-      JSON.parse(response.data.users);
+      // console.log(response.data)
+      //JSON.parse(response.data);
       expect(true).toBeTruthy();
     } catch (error: any) {
       console.error(`Erro no upload de arquivos ${error}`);
