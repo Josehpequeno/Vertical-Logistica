@@ -37,13 +37,25 @@ describe("Testes para rotas", () => {
     }
   });
 
-  it("Deve retornar 200 OK ao acessar a rota /list", async () => {
+  it("Teste na rota /list", async () => {
     try {
-      const response = await axios.get(`http://localhost:${PORT}/list`);
+      const start = 0;
+      const limit = 10;
+      const sort = "user_id";
+      const sortDirection = "asc";
+
+      const response = await axios.get(
+        `http://localhost:3000/list?start=${start}&limit=${limit}&sort=${sort}&sortDirection=${sortDirection}`
+      );
+
       expect(response.status).toBe(200);
-      // console.log(response.data)
-      //JSON.parse(response.data);
-      expect(true).toBeTruthy();
+      expect(response.data.users).toBeDefined();
+      expect(response.data.users.length).toBeLessThanOrEqual(limit);
+      for (let i = 0; i < response.data.users.length - 1; i++) {
+        expect(response.data.users[i].user_id).toBeLessThanOrEqual(
+          response.data.users[i + 1].user_id
+        );
+      }
     } catch (error: any) {
       console.error(`Erro no upload de arquivos ${error}`);
       expect(error.message).toBe(null);

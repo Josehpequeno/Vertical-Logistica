@@ -4,6 +4,7 @@ import { prismaContext } from "../utils/prismaContext";
 import fs from "fs";
 import path from "path";
 import * as readline from "readline";
+import { MultiBar } from "cli-progress";
 
 // configurando multer para armazenamento em arquivo
 const uploadDirectory = "uploads";
@@ -23,6 +24,39 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 const router = express.Router();
+
+const multiBar = new MultiBar({
+  format:
+    "{filename} |{bar}|  {percentage}% | {value}/{total} linhas",
+  barCompleteChar: "\u001b[32m\u2588\u001b[0m",
+  barIncompleteChar: "\u001b[37m\u2591\u001b[0m",
+  hideCursor: true
+});
+
+const progressBars: Record<string, any> = {};
+
+interface Task {
+  filename: string;
+  totalLines: number;
+}
+
+const initProgressBar = (task: Task) => {
+  const { filename, totalLines } = task;
+  progressBars[filename] = multiBar.create(totalLines, 0, { filename });
+};
+
+const updateProgressBar = (filename: string, value: number) => {
+  progressBars[filename].update(value);
+};
+
+const stopProgressBars = () => {
+  for (const progressBar of Object.values(progressBars)) {
+    progressBar.stop();
+  }
+  multiBar.stop();
+};
+
+const tasks: Task[] = [];
 
 /**
  * @swagger
@@ -44,6 +78,24 @@ const router = express.Router();
  *     responses:
  *       '200':
  *         description: Arquivo recebido com sucesso
+ *       '400':
+ *         description: Erro ao receber o arquivo
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *       '500':
+ *         description: Erro interno do servidor
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
  */
 router.post(
   "/upload",
@@ -63,7 +115,6 @@ router.post(
         crlfDelay: Infinity
       });
 
-      let promises: Promise<any>[] = [];
       const lines: string[] = [];
       rl.on("line", (line: string) => {
         lines.push(line);
@@ -73,9 +124,10 @@ router.post(
         throw new Error(err.message);
       });
 
+      let lineProcessed = 0;
       rl.on("close", async () => {
-        console.log(lines.length);
-
+        tasks.push({ filename, totalLines: lines.length });
+        initProgressBar({ filename, totalLines: lines.length });
         async function processLine(line: string) {
           const user_id = Number(line.slice(0, 10));
           const user_name = line.slice(10, 55);
@@ -122,7 +174,6 @@ router.post(
           } catch (err: any) {
             console.error("line", line);
             throw new Error(err.message);
-            //   return reject(err.message);
           }
 
           try {
@@ -136,9 +187,8 @@ router.post(
           } catch (err: any) {
             console.error("line", line);
             throw new Error(err.message);
-            // return reject(err.message);
           }
-          const orderExistsInDB = await prismaContext.order.findUnique({
+          let orderExistsInDB = await prismaContext.order.findUnique({
             where: {
               order_id
             },
@@ -153,7 +203,7 @@ router.post(
                 productOrderInLine
               ];
               const newTotal = updatedProducts.reduce(
-                (total, product) => total + product.value,
+                (total, product) => total + Number(product.value),
                 0
               );
               await prismaContext.order.update({
@@ -167,27 +217,59 @@ router.post(
               await prismaContext.productOrder.create({
                 data: productOrderInLine
               });
-              // return resolve(null);
+              lineProcessed++;
             } else {
-              await prismaContext.order.create({
-                data: orderInLine
-              });
-              await prismaContext.productOrder.create({
-                data: productOrderInLine
-              });
-              // return resolve(null);
+              try {
+                await prismaContext.order.create({
+                  data: orderInLine
+                }); //tratando erro ao criar orders em paralelo.
+              } catch (error: any) {
+                orderExistsInDB = await prismaContext.order.findUnique({
+                  where: {
+                    order_id
+                  },
+                  include: {
+                    products: true
+                  }
+                });
+                if (orderExistsInDB === null) {
+                  throw new Error(error.message);
+                }
+                const updatedProducts = [
+                  ...orderExistsInDB.products,
+                  productOrderInLine
+                ];
+                const newTotal = updatedProducts.reduce(
+                  (total, product) => total + Number(product.value),
+                  0
+                );
+                await prismaContext.order.update({
+                  where: {
+                    order_id
+                  },
+                  data: {
+                    total: newTotal
+                  }
+                });
+              } finally {
+                await prismaContext.productOrder.create({
+                  data: productOrderInLine
+                });
+                lineProcessed++;
+              }
             }
           } catch (err: any) {
             console.error("line", line, "\n->", orderExistsInDB);
             throw new Error(err.message);
-            // reject(err.message);
           }
-          // return reject();
-          //    }));
+          // console.log(
+          //   `linhas processadas arquivo ${filename}: `,
+          //   lineProcessed,
+          //   "/",
+          //   lines.length
+          // );
+          updateProgressBar(filename, lineProcessed);
         }
-
-        // console.log(promises.length);
-        // Promise.all(promises).then(() => {
         (async () => {
           for (let line of lines) {
             await processLine(line);
@@ -217,9 +299,31 @@ router.post(
  * @swagger
  * /list:
  *   get:
- *     summary: Obter dados
- *     description: Endpoint para obter dados
+ *     summary: Obter dados com paginação e ordenação
+ *     description: Endpoint para obter dados com paginação e ordenação
  *     tags: [List]
+ *     parameters:
+ *       - in: query
+ *         name: start
+ *         schema:
+ *           type: integer
+ *         description: Índice de início para a paginação
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Número máximo de resultados a serem retornados
+ *       - in: query
+ *         name: sort
+ *         schema:
+ *           type: string
+ *         description: Campo pelo qual os resultados devem ser ordenados
+ *       - in: query
+ *         name: sortDirection
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *         description: Direção da ordenação (ascendente ou descendente)
  *     responses:
  *       '200':
  *         description: Dados obtidos com sucesso
@@ -228,17 +332,61 @@ router.post(
  *             schema:
  *               type: object
  *               properties:
- *                 result:
+ *                 users:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       user_id:
+ *                         type: integer
+ *                       name:
+ *                         type: string
+ *       '400':
+ *         description: Parâmetros inválidos
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *       '500':
+ *         description: Erro ao buscar os dados
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
  *                   type: string
  */
 router.get("/list", async (req: Request, res: Response) => {
   try {
-    const users = await prismaContext.user.findMany();
+    let start = 0;
+    let limit = 10;
+    let sort = "user_id";
+    let sortDirection = "asc";
+
+    if (req.query.start) start = parseInt(req.query.start as string);
+    if (req.query.limit) limit = parseInt(req.query.limit as string);
+    if (req.query.sort) sort = req.query.sort as string;
+    if (req.query.sortDirection && ["asc", "desc"].includes(req.query.sortDirection as string)) {
+      sortDirection = req.query.sortDirection as string;
+    }
+    const users = await prismaContext.user.findMany({
+      skip: start,
+      take: limit,
+      orderBy: {
+        [sort]: sortDirection,
+      },
+    });
+
     res.status(200).json({ users });
   } catch (error: any) {
-    console.error("Erro a busca de dados:", error);
-    res.status(500).json({ error: "Erro durante o processamento do arquivo" });
+    console.error("Erro ao buscar dados:", error);
+    res.status(500).json({ error: "Erro durante o processamento da solicitação" });
   }
 });
+
 
 export default router;

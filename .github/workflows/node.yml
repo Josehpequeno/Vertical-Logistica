@@ -51,6 +51,9 @@ jobs:
           
       - name: Rodar Migrations
         run: npx prisma migrate dev
+
+      - name: Executar testes em banco de dados
+        run: npm run test:database
           
       - name: Start Server
         run: npm start &
