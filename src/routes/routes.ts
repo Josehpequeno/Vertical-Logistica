@@ -4,8 +4,6 @@ import { prismaContext } from "../utils/prismaContext";
 import fs from "fs";
 import path from "path";
 import * as readline from "readline";
-import { MultiBar } from "cli-progress";
-import { connect } from "http2";
 
 // configurando multer para armazenamento em arquivo
 const uploadDirectory = "uploads";
@@ -25,38 +23,6 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 const router = express.Router();
-
-const multiBar = new MultiBar({
-  format: "{filename} |{bar}|  {percentage}% | {value}/{total} linhas",
-  barCompleteChar: "\u001b[32m\u2588\u001b[0m",
-  barIncompleteChar: "\u001b[37m\u2591\u001b[0m",
-  hideCursor: true
-});
-
-const progressBars: Record<string, any> = {};
-
-interface Task {
-  filename: string;
-  totalLines: number;
-}
-
-const initProgressBar = (task: Task) => {
-  const { filename, totalLines } = task;
-  progressBars[filename] = multiBar.create(totalLines, 0, { filename });
-};
-
-const updateProgressBar = (filename: string, value: number) => {
-  progressBars[filename].update(value);
-};
-
-const stopProgressBars = () => {
-  for (const progressBar of Object.values(progressBars)) {
-    progressBar.stop();
-  }
-  multiBar.stop();
-};
-
-const tasks: Task[] = [];
 
 /**
  * @swagger
@@ -115,6 +81,21 @@ router.post(
         crlfDelay: Infinity
       });
 
+      // const usersInDb = await prismaContext.user.findMany({});
+      // const ordersInDb = await prismaContext.order.findMany({});
+      // const productsInDb = await prismaContext.product.findMany({});
+      const usersMap = new Map();
+      // usersInDb.forEach((item) => {
+      //   usersMap.set(item.user_id, item.name);
+      // });
+      const ordersMap = new Map();
+      // ordersInDb.forEach((item) => {
+      //   ordersMap.set(item.order_id, item.total);
+      // });
+      const productsMap = new Map();
+      // productsInDb.forEach((item) => {
+      //   productsMap.set(item.product_id, item.value);
+      // });
       const users: any[] = [];
       const orders: any[] = [];
       const products: any[] = [];
@@ -144,134 +125,35 @@ router.post(
           order_id,
           date: new Date(year, month, day).toISOString().split("T")[0],
           total: product_value,
-          // user: {
-          //   connectOrCreate: {
-          //     where: { user_id: user_id },
-          //     create: userInLine
-          //   }
-          // }
           user_id
         };
 
         const productOrderInLine = {
           product_id,
           value: product_value,
-          // order: {
-          //   connectOrCreate: {
-          //     where: { order_id: order_id },
-          //     create: orderInLine
-          //   }
-          // }
           order_id
         };
 
-        // const productExists = products.some(
-        //   (product) => product.product_id === productInLine.product_id
-        // );
+        if (productsMap.has(product_id)) {
+          productsMap.set(product_id, product_value);
+        } else {
+          products.push(productInLine);
+        }
 
-        // if (!productExists) {
-        products.push(
-          prismaContext.product.upsert({
-            where: {
-              product_id
-            },
-            create: productInLine,
-            update: { value: productInLine.value }
-          })
-        );
-        // }
-        // const userExists = users.some(
-        //   (user) => user.user_id === userInLine.user_id
-        // );
+        if (usersMap.has(user_id)) {
+          productsMap.set(user_id, user_name);
+        } else {
+          users.push(userInLine);
+        }
 
-        // if (!userExists) {
-        users.push(
-          prismaContext.user.upsert({
-            where: {
-              user_id
-            },
-            create: userInLine,
-            update: { name: userInLine.name }
-          })
-        );
-        // }
-        // orders.push(orderInLine);
-        let orderInDb = await prismaContext.order.findUnique({
-          where: {
-            order_id
-          }
-        });
-        const total = orderInDb
-          ? orderInDb.total + product_value
-          : product_value;
-        orders.push(
-          prismaContext.order.upsert({
-            where: {
-              order_id
-            },
-            create: orderInLine,
-            update: {
-              total
-            }
-          })
-        );
-        // prismaContext.order
-        //   .findUnique({
-        //     where: {
-        //       order_id
-        //     }
-        //   })
-        //   .then((orderExistsInDB) => {
-        //     if (orderExistsInDB) {
-        //       orders.push(
-        //         prismaContext.order.update({
-        //           where: {
-        //             order_id
-        //           },
-        //           data: orderInLine
-        //         })
-        //       );
-        //     } else {
-        //       orders.push(
-        //         prismaContext.order
-        //           .create({
-        //             data: orderInLine
-        //           })
-        //           .catch(async (err: any) => {
-        //             const existOrderIdInDb = prismaContext.order.findUnique({
-        //               where: {
-        //                 order_id
-        //               }
-        //             });
-        //             if (!existOrderIdInDb) {
-        //               throw new Error(err.message);
-        //             }
-        //             return prismaContext.order.update({
-        //               where: {
-        //                 order_id
-        //               },
-        //               data: orderInLine
-        //             });
-        //           })
-        //       );
-        //     }
-        //   });
-        // orders.push(order);
-        // const productOrder = prismaContext.productOrder.create({
-        //   data: productOrderInLine
-        // });
+        if (ordersMap.has(order_id)) {
+          const total = Number(ordersMap.get(order_id)) + product_value;
+          ordersMap.set(order_id, total);
+        } else {
+          orders.push(orderInLine);
+        }
+
         productsOrder.push(productOrderInLine);
-        // await prismaContext.productOrder.create({
-        //   data: productOrderInLine
-        // });
-        lineProcessed++;
-        // console.log(
-        //   `linhas processadas arquivo ${filename}: `,
-        //   lineProcessed,
-        //   "/",
-        //   lines.length
-        // );
-        // updateProgressBar(filename, lineProcessed);
       }
       rl.on("line", (line: string) => {
         if (line.length !== 0) {
@@ -283,33 +165,31 @@ router.post(
         throw new Error(err.message);
       });
 
-      let lineProcessed = 0;
       rl.on("close", async () => {
         fs.unlinkSync(filePath);
-        // tasks.push({ filename, totalLines: lines.length });
-        // initProgressBar({ filename, totalLines: lines.length });
+        console.log(users);
+        await prismaContext.$transaction(
+          [
+            prismaContext.user.createMany({
+              data: users
+            }),
+            prismaContext.product.createMany({
+              data: products
+            }),
+            prismaContext.order.createMany({
+              data: orders
+            }),
+            prismaContext.productOrder.createMany({
+              data: productsOrder
+            })
+          ],
+          { isolationLevel: "ReadUncommitted" }
+        );
 
-        // (async () => {
-        //   for (let line of lines) {
-        //     await processLine(line);
-        //   }
-        // })();
-        prismaContext.$transaction(async (tx) => {
-          prismaContext.$transaction(users);
-          prismaContext.$transaction(products);
-          prismaContext.$transaction(orders);
-
-          await tx.productOrder.createMany({
-            data: productsOrder
-          });
-
-          const endTime = Date.now();
-          const elapsedTime = endTime - startTime;
-          console.log(`Tempo de processamento: ${elapsedTime}ms`);
-          res
-            .status(200)
-            .json({ message: "Conteúdo do arquivo lido com sucesso" });
-        });
+        const endTime = Date.now();
+        const elapsedTime = endTime - startTime;
+        console.log(`Tempo de processamento: ${elapsedTime}ms`);
+        res.status(200);
       });
     } catch (error) {
       console.error("Erro durante o processamento do arquivo:", error);
@@ -406,6 +286,18 @@ router.get("/list", async (req: Request, res: Response) => {
       take: limit,
       orderBy: {
         [sort]: sortDirection
+      },
+      include: {
+        orders: {
+          include: {
+            products: {
+              select: {
+                value: true,
+                product_id: true
+              }
+            }
+          }
+        }
       }
     });
 
