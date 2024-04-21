@@ -5,6 +5,7 @@ import fs from "fs";
 import path from "path";
 import * as readline from "readline";
 import { MultiBar } from "cli-progress";
+import { connect } from "http2";
 
 // configurando multer para armazenamento em arquivo
 const uploadDirectory = "uploads";
@@ -26,8 +27,7 @@ const upload = multer({ storage: storage });
 const router = express.Router();
 
 const multiBar = new MultiBar({
-  format:
-    "{filename} |{bar}|  {percentage}% | {value}/{total} linhas",
+  format: "{filename} |{bar}|  {percentage}% | {value}/{total} linhas",
   barCompleteChar: "\u001b[32m\u2588\u001b[0m",
   barIncompleteChar: "\u001b[37m\u2591\u001b[0m",
   hideCursor: true
@@ -115,9 +115,168 @@ router.post(
         crlfDelay: Infinity
       });
 
-      const lines: string[] = [];
+      const users: any[] = [];
+      const orders: any[] = [];
+      const products: any[] = [];
+      const productsOrder: any[] = [];
+      async function processLine(line: string) {
+        const user_id = Number(line.slice(0, 10));
+        const user_name = line.slice(10, 55);
+        const order_id = Number(line.slice(55, 65));
+        const product_id = Number(line.slice(65, 75));
+        const product_value = Number(line.slice(75, 87));
+        const order_date = line.slice(87, 87 + 8);
+        const productInLine = {
+          product_id,
+          value: product_value
+        };
+
+        const year = parseInt(order_date.substring(0, 4));
+        const month = parseInt(order_date.substring(4, 6)) - 1; // Mês é base 0 (0-11)
+        const day = parseInt(order_date.substring(6, 8));
+
+        const userInLine = {
+          user_id,
+          name: user_name
+        };
+
+        const orderInLine = {
+          order_id,
+          date: new Date(year, month, day).toISOString().split("T")[0],
+          total: product_value,
+          // user: {
+          //   connectOrCreate: {
+          //     where: { user_id: user_id },
+          //     create: userInLine
+          //   }
+          // }
+          user_id
+        };
+
+        const productOrderInLine = {
+          product_id,
+          value: product_value,
+          // order: {
+          //   connectOrCreate: {
+          //     where: { order_id: order_id },
+          //     create: orderInLine
+          //   }
+          // }
+          order_id
+        };
+
+        // const productExists = products.some(
+        //   (product) => product.product_id === productInLine.product_id
+        // );
+
+        // if (!productExists) {
+        products.push(
+          prismaContext.product.upsert({
+            where: {
+              product_id
+            },
+            create: productInLine,
+            update: { value: productInLine.value }
+          })
+        );
+        // }
+        // const userExists = users.some(
+        //   (user) => user.user_id === userInLine.user_id
+        // );
+
+        // if (!userExists) {
+        users.push(
+          prismaContext.user.upsert({
+            where: {
+              user_id
+            },
+            create: userInLine,
+            update: { name: userInLine.name }
+          })
+        );
+        // }
+        // orders.push(orderInLine);
+        let orderInDb = await prismaContext.order.findUnique({
+          where: {
+            order_id
+          }
+        });
+        const total = orderInDb
+          ? orderInDb.total + product_value
+          : product_value;
+        orders.push(
+          prismaContext.order.upsert({
+            where: {
+              order_id
+            },
+            create: orderInLine,
+            update: {
+              total
+            }
+          })
+        );
+        // prismaContext.order
+        //   .findUnique({
+        //     where: {
+        //       order_id
+        //     }
+        //   })
+        //   .then((orderExistsInDB) => {
+        //     if (orderExistsInDB) {
+        //       orders.push(
+        //         prismaContext.order.update({
+        //           where: {
+        //             order_id
+        //           },
+        //           data: orderInLine
+        //         })
+        //       );
+        //     } else {
+        //       orders.push(
+        //         prismaContext.order
+        //           .create({
+        //             data: orderInLine
+        //           })
+        //           .catch(async (err: any) => {
+        //             const existOrderIdInDb = prismaContext.order.findUnique({
+        //               where: {
+        //                 order_id
+        //               }
+        //             });
+        //             if (!existOrderIdInDb) {
+        //               throw new Error(err.message);
+        //             }
+        //             return prismaContext.order.update({
+        //               where: {
+        //                 order_id
+        //               },
+        //               data: orderInLine
+        //             });
+        //           })
+        //       );
+        //     }
+        //   });
+        // orders.push(order);
+        // const productOrder = prismaContext.productOrder.create({
+        //   data: productOrderInLine
+        // });
+        productsOrder.push(productOrderInLine);
+        // await prismaContext.productOrder.create({
+        //   data: productOrderInLine
+        // });
+        lineProcessed++;
+        // console.log(
+        //   `linhas processadas arquivo ${filename}: `,
+        //   lineProcessed,
+        //   "/",
+        //   lines.length
+        // );
+        // updateProgressBar(filename, lineProcessed);
+      }
       rl.on("line", (line: string) => {
-        lines.push(line);
+        if (line.length !== 0) {
+          processLine(line);
+        }
       });
 
       rl.on("error", (err: Error) => {
@@ -126,165 +285,31 @@ router.post(
 
       let lineProcessed = 0;
       rl.on("close", async () => {
-        tasks.push({ filename, totalLines: lines.length });
-        initProgressBar({ filename, totalLines: lines.length });
-        async function processLine(line: string) {
-          const user_id = Number(line.slice(0, 10));
-          const user_name = line.slice(10, 55);
-          const order_id = Number(line.slice(55, 65));
-          const product_id = Number(line.slice(65, 75));
-          const product_value = Number(line.slice(75, 87));
-          const order_date = line.slice(87, 87 + 8);
-          const productInLine = {
-            product_id,
-            value: product_value
-          };
-
-          const productOrderInLine = {
-            order_id,
-            ...productInLine
-          };
-
-          const year = parseInt(order_date.substring(0, 4));
-          const month = parseInt(order_date.substring(4, 6)) - 1; // Mês é base 0 (0-11)
-          const day = parseInt(order_date.substring(6, 8));
-
-          const orderInLine = {
-            order_id,
-            date: new Date(year, month, day).toISOString().split("T")[0],
-            total: product_value,
-            user: {
-              connect: { user_id }
-            }
-          };
-
-          const userInLine = {
-            user_id,
-            name: user_name
-          };
-
-          try {
-            await prismaContext.product.upsert({
-              where: {
-                product_id
-              },
-              create: productInLine,
-              update: { value: product_value }
-            });
-          } catch (err: any) {
-            console.error("line", line);
-            throw new Error(err.message);
-          }
-
-          try {
-            await prismaContext.user.upsert({
-              where: {
-                user_id
-              },
-              create: userInLine,
-              update: { name: user_name }
-            });
-          } catch (err: any) {
-            console.error("line", line);
-            throw new Error(err.message);
-          }
-          let orderExistsInDB = await prismaContext.order.findUnique({
-            where: {
-              order_id
-            },
-            include: {
-              products: true
-            }
-          });
-          try {
-            if (orderExistsInDB) {
-              const updatedProducts = [
-                ...orderExistsInDB.products,
-                productOrderInLine
-              ];
-              const newTotal = updatedProducts.reduce(
-                (total, product) => total + Number(product.value),
-                0
-              );
-              await prismaContext.order.update({
-                where: {
-                  order_id
-                },
-                data: {
-                  total: newTotal
-                }
-              });
-              await prismaContext.productOrder.create({
-                data: productOrderInLine
-              });
-              lineProcessed++;
-            } else {
-              try {
-                await prismaContext.order.create({
-                  data: orderInLine
-                }); //tratando erro ao criar orders em paralelo.
-              } catch (error: any) {
-                orderExistsInDB = await prismaContext.order.findUnique({
-                  where: {
-                    order_id
-                  },
-                  include: {
-                    products: true
-                  }
-                });
-                if (orderExistsInDB === null) {
-                  throw new Error(error.message);
-                }
-                const updatedProducts = [
-                  ...orderExistsInDB.products,
-                  productOrderInLine
-                ];
-                const newTotal = updatedProducts.reduce(
-                  (total, product) => total + Number(product.value),
-                  0
-                );
-                await prismaContext.order.update({
-                  where: {
-                    order_id
-                  },
-                  data: {
-                    total: newTotal
-                  }
-                });
-              } finally {
-                await prismaContext.productOrder.create({
-                  data: productOrderInLine
-                });
-                lineProcessed++;
-              }
-            }
-          } catch (err: any) {
-            console.error("line", line, "\n->", orderExistsInDB);
-            throw new Error(err.message);
-          }
-          // console.log(
-          //   `linhas processadas arquivo ${filename}: `,
-          //   lineProcessed,
-          //   "/",
-          //   lines.length
-          // );
-          updateProgressBar(filename, lineProcessed);
-        }
-        (async () => {
-          for (let line of lines) {
-            await processLine(line);
-          }
-        })();
-        const endTime = Date.now();
-        const elapsedTime = endTime - startTime;
-        console.log(`Tempo de processamento: ${elapsedTime}ms`);
-        res
-          .status(200)
-          .json({ message: "Conteúdo do arquivo lido com sucesso" });
-        // }).catch(err => {
-        //   throw new Error(err.mmessage);
-        // });
         fs.unlinkSync(filePath);
+        // tasks.push({ filename, totalLines: lines.length });
+        // initProgressBar({ filename, totalLines: lines.length });
+
+        // (async () => {
+        //   for (let line of lines) {
+        //     await processLine(line);
+        //   }
+        // })();
+        prismaContext.$transaction(async (tx) => {
+          prismaContext.$transaction(users);
+          prismaContext.$transaction(products);
+          prismaContext.$transaction(orders);
+
+          await tx.productOrder.createMany({
+            data: productsOrder
+          });
+
+          const endTime = Date.now();
+          const elapsedTime = endTime - startTime;
+          console.log(`Tempo de processamento: ${elapsedTime}ms`);
+          res
+            .status(200)
+            .json({ message: "Conteúdo do arquivo lido com sucesso" });
+        });
       });
     } catch (error) {
       console.error("Erro durante o processamento do arquivo:", error);
@@ -370,23 +395,27 @@ router.get("/list", async (req: Request, res: Response) => {
     if (req.query.start) start = parseInt(req.query.start as string);
     if (req.query.limit) limit = parseInt(req.query.limit as string);
     if (req.query.sort) sort = req.query.sort as string;
-    if (req.query.sortDirection && ["asc", "desc"].includes(req.query.sortDirection as string)) {
+    if (
+      req.query.sortDirection &&
+      ["asc", "desc"].includes(req.query.sortDirection as string)
+    ) {
       sortDirection = req.query.sortDirection as string;
     }
     const users = await prismaContext.user.findMany({
       skip: start,
       take: limit,
       orderBy: {
-        [sort]: sortDirection,
-      },
+        [sort]: sortDirection
+      }
     });
 
     res.status(200).json({ users });
   } catch (error: any) {
     console.error("Erro ao buscar dados:", error);
-    res.status(500).json({ error: "Erro durante o processamento da solicitação" });
+    res
+      .status(500)
+      .json({ error: "Erro durante o processamento da solicitação" });
   }
 });
-
 
 export default router;
