@@ -58,7 +58,7 @@ npm start
 
 ## Design do Banco de Dados
 
-O banco de dados deste projeto consiste em três tabelas principais: `Users`, `Products` e `Orders`, com relacionamentos entre elas.
+O banco de dados deste projeto consiste em três tabelas principais: `Users`, `Products`, `ProductsOrder` e `Orders`, com relacionamentos entre elas.
 
 Claro, aqui está o README atualizado com o nome do projeto "Vertical-Logistica" e o restante das informações:
 
