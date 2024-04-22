@@ -4,10 +4,10 @@ import fs from "fs";
 import FormData from "form-data";
 
 const PORT = 3000;
-const FILE_PATH_1 = path.resolve(__dirname, "../data_1.txt");
-const FILE_PATH_2 = path.resolve(__dirname, "../data_2.txt");
+const FILE_PATH_1 = path.resolve(__dirname, "../../data_1.txt");
+const FILE_PATH_2 = path.resolve(__dirname, "../../data_2.txt");
 
-describe("Testes para rotas", () => {
+describe("Testes para rota upload e list para cada arquivo", () => {
   it("Teste com envio na rota /upload e depois list do arquivo 1", async () => {
     try {
       const formData = new FormData();

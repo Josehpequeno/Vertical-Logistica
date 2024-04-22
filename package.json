@@ -8,8 +8,10 @@
     "dev": "ts-node-dev src/app.ts",
     "build": "tsc",
     "serve": "node dist/app.js",
-    "test": "jest tests/routes.test.ts",
-    "test:database": "jest tests/database/*.test.ts"
+    "test": "jest tests/*.test.ts",
+    "test:database": "jest tests/database/*.test.ts",
+    "test:routes": "jest tests/routes/*.test.ts",
+    "test:functions": "jest tests/functions/*.test.ts"
   },
   "author": "Josehpequeno",
   "license": "MIT",

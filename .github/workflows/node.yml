@@ -51,9 +51,6 @@ jobs:
           
       - name: Rodar Migrations
         run: npx prisma migrate dev
-
-      - name: Executar testes em banco de dados
-        run: npm run test:database
           
       - name: Start Server
         run: npm start &
@@ -61,5 +58,12 @@ jobs:
       - name: Aguardar servidor iniciar
         run: sleep 5s
 
-      - name: Executar testes
-        run: npm test
+      - name: Executar testes em banco de dados
+        run: npm run test:database
+      
+      - name: Executar testes nas funções
+        run: npm run test:functions
+
+      - name: Executar testes nas rotas
+        run: npm run test:routes
+    

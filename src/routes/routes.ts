@@ -1,50 +1,15 @@
-import express, { Request, Response, NextFunction } from "express";
-import multer from "multer";
+import express, { Request, Response } from "express";
 import { prismaContext } from "../utils/prismaContext";
 import fs from "fs";
 import path from "path";
 import * as readline from "readline";
-import { Order, User } from "@prisma/client";
-
-// configurando multer para armazenamento em arquivo
-const uploadDirectory = "uploads";
-if (!fs.existsSync(uploadDirectory)) {
-  fs.mkdirSync(uploadDirectory);
-}
-
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadDirectory);
-  },
-  filename: function (req, file, cb) {
-    const currentDate = Date.now().toString();
-    cb(null, currentDate + "_" + file.originalname);
-  }
-});
-const upload = multer({ storage: storage });
+import { Order } from "@prisma/client";
+import { ProcessLine } from "../utils/ProcessLine";
+import { ProductOrderWithoutId } from "../interfaces/ProductOrderWithoutId";
+import { UsersWithOrders } from "../interfaces/UsersWithOrders";
+import { upload, uploadDirectory } from "../utils/multerConfig";
 
 const router = express.Router();
-
-interface ProductOrderWithoutId {
-  product_id: number;
-  value: number;
-  order_id: number;
-}
-
-interface Product {
-  product_id: number;
-  value: number;
-}
-
-interface OrderWithProducts {
-  order_id: number;
-  total: number;
-  date: string;
-  products: Product[];
-}
-interface UsersWithOrders extends User {
-  orders: OrderWithProducts[];
-}
 
 /**
  * @swagger
@@ -95,7 +60,6 @@ interface UsersWithOrders extends User {
  *                   type: string
  *                   description: Mensagem indicando o erro interno do servidor durante o processamento do arquivo.
  */
-
 router.post(
   "/upload",
   upload.single("file"),
@@ -115,59 +79,23 @@ router.post(
       });
 
       const usersMap: Map<number, string> = new Map();
+      const productsMap: Map<number, number> = new Map();
       const ordersTotalMap: Map<number, number> = new Map();
       const ordersIndexMap: Map<number, number> = new Map();
-      const productsMap: Map<number, number> = new Map();
       const orders: Order[] = [];
       const productsOrder: ProductOrderWithoutId[] = [];
 
       rl.on("line", (line: string) => {
         if (line.length !== 0) {
-          const user_id = Number(line.slice(0, 10));
-          const user_name = line.slice(10, 55).trim();
-          const order_id = Number(line.slice(55, 65));
-          const product_id = Number(line.slice(65, 75));
-          const product_value = Number(line.slice(75, 87));
-          const order_date = line.slice(87, 87 + 8);
-
-          const year = order_date.substring(0, 4);
-          const month = order_date.substring(4, 6);
-          const day = order_date.substring(6, 8);
-
-          const date = year + "-" + month + "-" + day;
-
-          const orderInLine = {
-            order_id,
-            date,
-            total: product_value,
-            user_id
-          };
-
-          const productOrderInLine = {
-            product_id,
-            value: product_value,
-            order_id
-          };
-
-          productsMap.set(product_id, product_value);
-          usersMap.set(user_id, user_name);
-
-          if (ordersIndexMap.has(order_id)) {
-            const currentTotal = ordersTotalMap.get(order_id)!;
-            const newTotal = parseFloat(
-              (currentTotal + product_value).toFixed(2)
-            );
-            const currentIndex = ordersIndexMap.get(order_id)!;
-            ordersTotalMap.set(order_id, newTotal);
-            orders[currentIndex!].total = newTotal;
-          } else {
-            orders.push(orderInLine);
-            const total = product_value;
-            ordersIndexMap.set(order_id, orders.length - 1);
-            ordersTotalMap.set(order_id, total);
-          }
-
-          productsOrder.push(productOrderInLine);
+          ProcessLine(
+            line,
+            usersMap,
+            productsMap,
+            ordersTotalMap,
+            ordersIndexMap,
+            orders,
+            productsOrder
+          );
         }
       });
 
