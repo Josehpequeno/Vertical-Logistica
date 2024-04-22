@@ -60,18 +60,6 @@ npm start
 
 O banco de dados deste projeto consiste em quatro tabelas principais: `Users`, `Products`, `ProductsOrder` e `Orders`, com relacionamentos entre elas.
 
-Claro, aqui está o README atualizado com o nome do projeto "Vertical-Logistica" e o restante das informações:
-
----
-
-# Vertical-Logistica
-
-Este é um desafio técnico para o projeto Vertical-Logistica, que visa desenvolver um sistema de gerenciamento de pedidos, usuários e produtos para uma empresa de logística.
-
-## Design do Banco de Dados
-
-O banco de dados deste projeto consiste em três tabelas principais: `Users`, `Products`, `ProductsOrder` e `Orders`, com relacionamentos entre elas.
-
 ### Tabela `Users`
 
 Esta tabela armazena informações sobre os usuários do sistema e possui um relacionamento de um para muitos com a tabela `Orders`.
@@ -91,6 +79,7 @@ Esta tabela armazena informações sobre os produtos disponíveis no sistema.
 | product_id  | Inteiro | Identificador do produto   |
 | value       | Decimal | Valor do produto           |
 
+
 ### Tabela `ProductOrders`
 
 Esta tabela armazena informações sobre os produtos já pedido relacionados a tabela `Orders` com quem possui um relacionamento de muitos para muitos.
@@ -100,7 +89,6 @@ Esta tabela armazena informações sobre os produtos já pedido relacionados a t
 | product_id  | Inteiro | Identificador do produto   |
 | order_id    | Inteiro | Identificador da order     |
 | value       | Decimal | Valor do produto           |
-
 
 
 ### Tabela `Orders`
