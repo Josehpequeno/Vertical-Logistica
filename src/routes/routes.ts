@@ -4,8 +4,6 @@ import { prismaContext } from "../utils/prismaContext";
 import fs from "fs";
 import path from "path";
 import * as readline from "readline";
-import { MultiBar } from "cli-progress";
-import { connect } from "http2";
 
 // configurando multer para armazenamento em arquivo
 const uploadDirectory = "uploads";
@@ -25,38 +23,6 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 const router = express.Router();
-
-const multiBar = new MultiBar({
-  format: "{filename} |{bar}|  {percentage}% | {value}/{total} linhas",
-  barCompleteChar: "\u001b[32m\u2588\u001b[0m",
-  barIncompleteChar: "\u001b[37m\u2591\u001b[0m",
-  hideCursor: true
-});
-
-const progressBars: Record<string, any> = {};
-
-interface Task {
-  filename: string;
-  totalLines: number;
-}
-
-const initProgressBar = (task: Task) => {
-  const { filename, totalLines } = task;
-  progressBars[filename] = multiBar.create(totalLines, 0, { filename });
-};
-
-const updateProgressBar = (filename: string, value: number) => {
-  progressBars[filename].update(value);
-};
-
-const stopProgressBars = () => {
-  for (const progressBar of Object.values(progressBars)) {
-    progressBar.stop();
-  }
-  multiBar.stop();
-};
-
-const tasks: Task[] = [];
 
 /**
  * @swagger
@@ -115,163 +81,52 @@ router.post(
         crlfDelay: Infinity
       });
 
-      const users: any[] = [];
+      const usersMap = new Map();
+      const ordersTotalMap = new Map();
+      const ordersIndexMap = new Map();
+      const productsMap = new Map();
       const orders: any[] = [];
-      const products: any[] = [];
       const productsOrder: any[] = [];
       async function processLine(line: string) {
         const user_id = Number(line.slice(0, 10));
-        const user_name = line.slice(10, 55);
+        const user_name = line.slice(10, 55).trim();
         const order_id = Number(line.slice(55, 65));
         const product_id = Number(line.slice(65, 75));
         const product_value = Number(line.slice(75, 87));
         const order_date = line.slice(87, 87 + 8);
-        const productInLine = {
-          product_id,
-          value: product_value
-        };
 
         const year = parseInt(order_date.substring(0, 4));
         const month = parseInt(order_date.substring(4, 6)) - 1; // Mês é base 0 (0-11)
         const day = parseInt(order_date.substring(6, 8));
 
-        const userInLine = {
-          user_id,
-          name: user_name
-        };
-
         const orderInLine = {
           order_id,
           date: new Date(year, month, day).toISOString().split("T")[0],
           total: product_value,
-          // user: {
-          //   connectOrCreate: {
-          //     where: { user_id: user_id },
-          //     create: userInLine
-          //   }
-          // }
           user_id
         };
 
         const productOrderInLine = {
           product_id,
           value: product_value,
-          // order: {
-          //   connectOrCreate: {
-          //     where: { order_id: order_id },
-          //     create: orderInLine
-          //   }
-          // }
           order_id
         };
 
-        // const productExists = products.some(
-        //   (product) => product.product_id === productInLine.product_id
-        // );
+        productsMap.set(product_id, product_value);
+        usersMap.set(user_id, user_name);
 
-        // if (!productExists) {
-        products.push(
-          prismaContext.product.upsert({
-            where: {
-              product_id
-            },
-            create: productInLine,
-            update: { value: productInLine.value }
-          })
-        );
-        // }
-        // const userExists = users.some(
-        //   (user) => user.user_id === userInLine.user_id
-        // );
+        if (ordersIndexMap.has(order_id)) {
+          const total = ordersTotalMap.get(order_id) + product_value;
+          ordersTotalMap.set(order_id, total);
+          orders[ordersIndexMap.get(order_id)].total = total;
+        } else {
+          orders.push(orderInLine);
+          const total = product_value;
+          ordersIndexMap.set(order_id, Number(orders.length - 1));
+          ordersTotalMap.set(order_id, total);
+        }
 
-        // if (!userExists) {
-        users.push(
-          prismaContext.user.upsert({
-            where: {
-              user_id
-            },
-            create: userInLine,
-            update: { name: userInLine.name }
-          })
-        );
-        // }
-        // orders.push(orderInLine);
-        let orderInDb = await prismaContext.order.findUnique({
-          where: {
-            order_id
-          }
-        });
-        const total = orderInDb
-          ? orderInDb.total + product_value
-          : product_value;
-        orders.push(
-          prismaContext.order.upsert({
-            where: {
-              order_id
-            },
-            create: orderInLine,
-            update: {
-              total
-            }
-          })
-        );
-        // prismaContext.order
-        //   .findUnique({
-        //     where: {
-        //       order_id
-        //     }
-        //   })
-        //   .then((orderExistsInDB) => {
-        //     if (orderExistsInDB) {
-        //       orders.push(
-        //         prismaContext.order.update({
-        //           where: {
-        //             order_id
-        //           },
-        //           data: orderInLine
-        //         })
-        //       );
-        //     } else {
-        //       orders.push(
-        //         prismaContext.order
-        //           .create({
-        //             data: orderInLine
-        //           })
-        //           .catch(async (err: any) => {
-        //             const existOrderIdInDb = prismaContext.order.findUnique({
-        //               where: {
-        //                 order_id
-        //               }
-        //             });
-        //             if (!existOrderIdInDb) {
-        //               throw new Error(err.message);
-        //             }
-        //             return prismaContext.order.update({
-        //               where: {
-        //                 order_id
-        //               },
-        //               data: orderInLine
-        //             });
-        //           })
-        //       );
-        //     }
-        //   });
-        // orders.push(order);
-        // const productOrder = prismaContext.productOrder.create({
-        //   data: productOrderInLine
-        // });
         productsOrder.push(productOrderInLine);
-        // await prismaContext.productOrder.create({
-        //   data: productOrderInLine
-        // });
-        lineProcessed++;
-        // console.log(
-        //   `linhas processadas arquivo ${filename}: `,
-        //   lineProcessed,
-        //   "/",
-        //   lines.length
-        // );
-        // updateProgressBar(filename, lineProcessed);
       }
       rl.on("line", (line: string) => {
         if (line.length !== 0) {
@@ -283,33 +138,41 @@ router.post(
         throw new Error(err.message);
       });
 
-      let lineProcessed = 0;
       rl.on("close", async () => {
         fs.unlinkSync(filePath);
-        // tasks.push({ filename, totalLines: lines.length });
-        // initProgressBar({ filename, totalLines: lines.length });
+        await prismaContext.$transaction(
+          async (tx) => {
+            await tx.user.deleteMany({});
+            await tx.product.deleteMany({});
+            await tx.productOrder.deleteMany({});
+            await tx.order.deleteMany({});
 
-        // (async () => {
-        //   for (let line of lines) {
-        //     await processLine(line);
-        //   }
-        // })();
-        prismaContext.$transaction(async (tx) => {
-          prismaContext.$transaction(users);
-          prismaContext.$transaction(products);
-          prismaContext.$transaction(orders);
+            await tx.user.createMany({
+              data: Array.from(usersMap, ([user_id, name]) => ({
+                user_id,
+                name
+              }))
+            });
+            await tx.product.createMany({
+              data: Array.from(productsMap, ([product_id, value]) => ({
+                product_id,
+                value: Number(value)
+              }))
+            });
+            await tx.order.createMany({
+              data: orders
+            });
+            await tx.productOrder.createMany({
+              data: productsOrder
+            });
+          },
+          { isolationLevel: "ReadUncommitted" }
+        );
 
-          await tx.productOrder.createMany({
-            data: productsOrder
-          });
-
-          const endTime = Date.now();
-          const elapsedTime = endTime - startTime;
-          console.log(`Tempo de processamento: ${elapsedTime}ms`);
-          res
-            .status(200)
-            .json({ message: "Conteúdo do arquivo lido com sucesso" });
-        });
+        const endTime = Date.now();
+        const elapsedTime = endTime - startTime;
+        console.log(`Tempo de processamento: ${elapsedTime}ms`);
+        res.status(200).send();
       });
     } catch (error) {
       console.error("Erro durante o processamento do arquivo:", error);
@@ -324,34 +187,11 @@ router.post(
  * @swagger
  * /list:
  *   get:
- *     summary: Obter dados com paginação e ordenação
- *     description: Endpoint para obter dados com paginação e ordenação
+ *     summary: Retorna uma lista de usuários com detalhes de pedidos e produtos.
  *     tags: [List]
- *     parameters:
- *       - in: query
- *         name: start
- *         schema:
- *           type: integer
- *         description: Índice de início para a paginação
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *         description: Número máximo de resultados a serem retornados
- *       - in: query
- *         name: sort
- *         schema:
- *           type: string
- *         description: Campo pelo qual os resultados devem ser ordenados
- *       - in: query
- *         name: sortDirection
- *         schema:
- *           type: string
- *           enum: [asc, desc]
- *         description: Direção da ordenação (ascendente ou descendente)
  *     responses:
- *       '200':
- *         description: Dados obtidos com sucesso
+ *       200:
+ *         description: OK. A lista de usuários foi retornada com sucesso.
  *         content:
  *           application/json:
  *             schema:
@@ -359,15 +199,11 @@ router.post(
  *               properties:
  *                 users:
  *                   type: array
+ *                   description: Lista de usuários com detalhes de pedidos e produtos.
  *                   items:
  *                     type: object
- *                     properties:
- *                       user_id:
- *                         type: integer
- *                       name:
- *                         type: string
- *       '400':
- *         description: Parâmetros inválidos
+ *       500:
+ *         description: Erro interno do servidor.
  *         content:
  *           application/json:
  *             schema:
@@ -375,37 +211,22 @@ router.post(
  *               properties:
  *                 error:
  *                   type: string
- *       '500':
- *         description: Erro ao buscar os dados
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
+ *                   description: Mensagem de erro.
  */
 router.get("/list", async (req: Request, res: Response) => {
   try {
-    let start = 0;
-    let limit = 10;
-    let sort = "user_id";
-    let sortDirection = "asc";
-
-    if (req.query.start) start = parseInt(req.query.start as string);
-    if (req.query.limit) limit = parseInt(req.query.limit as string);
-    if (req.query.sort) sort = req.query.sort as string;
-    if (
-      req.query.sortDirection &&
-      ["asc", "desc"].includes(req.query.sortDirection as string)
-    ) {
-      sortDirection = req.query.sortDirection as string;
-    }
     const users = await prismaContext.user.findMany({
-      skip: start,
-      take: limit,
-      orderBy: {
-        [sort]: sortDirection
+      include: {
+        orders: {
+          include: {
+            products: {
+              select: {
+                value: true,
+                product_id: true
+              }
+            }
+          }
+        }
       }
     });
 
