@@ -4,6 +4,7 @@ import { prismaContext } from "../utils/prismaContext";
 import fs from "fs";
 import path from "path";
 import * as readline from "readline";
+import { Order, User } from "@prisma/client";
 
 // configurando multer para armazenamento em arquivo
 const uploadDirectory = "uploads";
@@ -24,12 +25,33 @@ const upload = multer({ storage: storage });
 
 const router = express.Router();
 
+interface ProductOrderWithoutId {
+  product_id: number;
+  value: number;
+  order_id: number;
+}
+
+interface Product {
+  product_id: number;
+  value: number;
+}
+
+interface OrderWithProducts {
+  order_id: number;
+  total: number;
+  date: string;
+  products: Product[];
+}
+interface UsersWithOrders extends User {
+  orders: OrderWithProducts[];
+}
+
 /**
  * @swagger
  * /upload:
  *   post:
- *     summary: Receber arquivo
- *     description: Endpoint para receber um arquivo
+ *     summary: Receber e processar arquivo.
+ *     description: Endpoint para receber um arquivo contendo informações de pedidos e produtos, processá-lo e armazenar os dados no banco de dados.
  *     tags: [Upload]
  *     requestBody:
  *       required: true
@@ -43,9 +65,17 @@ const router = express.Router();
  *                 format: binary
  *     responses:
  *       '200':
- *         description: Arquivo recebido com sucesso
+ *         description: Arquivo processado com sucesso.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   description: Mensagem indicando que o arquivo foi processado com sucesso.
  *       '400':
- *         description: Erro ao receber o arquivo
+ *         description: Arquivo não fornecido.
  *         content:
  *           application/json:
  *             schema:
@@ -53,8 +83,9 @@ const router = express.Router();
  *               properties:
  *                 error:
  *                   type: string
+ *                   description: Mensagem indicando que o arquivo não foi fornecido.
  *       '500':
- *         description: Erro interno do servidor
+ *         description: Erro interno do servidor durante o processamento do arquivo.
  *         content:
  *           application/json:
  *             schema:
@@ -62,7 +93,9 @@ const router = express.Router();
  *               properties:
  *                 error:
  *                   type: string
+ *                   description: Mensagem indicando o erro interno do servidor durante o processamento do arquivo.
  */
+
 router.post(
   "/upload",
   upload.single("file"),
@@ -81,12 +114,12 @@ router.post(
         crlfDelay: Infinity
       });
 
-      const usersMap = new Map();
-      const ordersTotalMap = new Map();
-      const ordersIndexMap = new Map();
-      const productsMap = new Map();
-      const orders: any[] = [];
-      const productsOrder: any[] = [];
+      const usersMap: Map<number, string> = new Map();
+      const ordersTotalMap: Map<number, number> = new Map();
+      const ordersIndexMap: Map<number, number> = new Map();
+      const productsMap: Map<number, number> = new Map();
+      const orders: Order[] = [];
+      const productsOrder: ProductOrderWithoutId[] = [];
       async function processLine(line: string) {
         const user_id = Number(line.slice(0, 10));
         const user_name = line.slice(10, 55).trim();
@@ -116,13 +149,17 @@ router.post(
         usersMap.set(user_id, user_name);
 
         if (ordersIndexMap.has(order_id)) {
-          const total = ordersTotalMap.get(order_id) + product_value;
-          ordersTotalMap.set(order_id, total);
-          orders[ordersIndexMap.get(order_id)].total = total;
+          const currentTotal = ordersTotalMap.get(order_id)!;
+          const newTotal = parseFloat(
+            (currentTotal + product_value).toFixed(2)
+          );
+          const currentIndex = ordersIndexMap.get(order_id)!;
+          ordersTotalMap.set(order_id, newTotal);
+          orders[currentIndex!].total = newTotal;
         } else {
           orders.push(orderInLine);
           const total = product_value;
-          ordersIndexMap.set(order_id, Number(orders.length - 1));
+          ordersIndexMap.set(order_id, orders.length - 1);
           ordersTotalMap.set(order_id, total);
         }
 
@@ -139,40 +176,47 @@ router.post(
       });
 
       rl.on("close", async () => {
-        fs.unlinkSync(filePath);
-        await prismaContext.$transaction(
-          async (tx) => {
-            await tx.user.deleteMany({});
-            await tx.product.deleteMany({});
-            await tx.productOrder.deleteMany({});
-            await tx.order.deleteMany({});
+        try {
+          fs.unlinkSync(filePath);
+          await prismaContext.$transaction(
+            async (tx) => {
+              await tx.user.deleteMany({});
+              await tx.product.deleteMany({});
+              await tx.productOrder.deleteMany({});
+              await tx.order.deleteMany({});
 
-            await tx.user.createMany({
-              data: Array.from(usersMap, ([user_id, name]) => ({
-                user_id,
-                name
-              }))
-            });
-            await tx.product.createMany({
-              data: Array.from(productsMap, ([product_id, value]) => ({
-                product_id,
-                value: Number(value)
-              }))
-            });
-            await tx.order.createMany({
-              data: orders
-            });
-            await tx.productOrder.createMany({
-              data: productsOrder
-            });
-          },
-          { isolationLevel: "ReadUncommitted" }
-        );
+              await tx.user.createMany({
+                data: Array.from(usersMap, ([user_id, name]) => ({
+                  user_id,
+                  name
+                }))
+              });
+              await tx.product.createMany({
+                data: Array.from(productsMap, ([product_id, value]) => ({
+                  product_id,
+                  value: Number(value)
+                }))
+              });
+              await tx.order.createMany({
+                data: orders
+              });
+              await tx.productOrder.createMany({
+                data: productsOrder
+              });
+            },
+            { isolationLevel: "ReadUncommitted" }
+          );
 
-        const endTime = Date.now();
-        const elapsedTime = endTime - startTime;
-        console.log(`Tempo de processamento: ${elapsedTime}ms`);
-        res.status(200).send();
+          const endTime = Date.now();
+          const elapsedTime = endTime - startTime;
+          console.log(`Tempo de processamento: ${elapsedTime}ms`);
+          res.status(200).json({ message: "Arquivo processado com sucesso" });
+        } catch (error) {
+          console.error("Erro durante o processamento do arquivo:", error);
+          res
+            .status(500)
+            .json({ error: "Erro durante o processamento do arquivo" });
+        }
       });
     } catch (error) {
       console.error("Erro durante o processamento do arquivo:", error);
@@ -187,11 +231,12 @@ router.post(
  * @swagger
  * /list:
  *   get:
- *     summary: Retorna uma lista de usuários com detalhes de pedidos e produtos.
+ *     summary: Obter lista de usuários com detalhes de pedidos e produtos.
+ *     description: Endpoint para obter uma lista de usuários juntamente com detalhes de seus pedidos e produtos associados.
  *     tags: [List]
  *     responses:
- *       200:
- *         description: OK. A lista de usuários foi retornada com sucesso.
+ *       '200':
+ *         description: OK. A lista de usuários com detalhes de pedidos e produtos foi obtida com sucesso.
  *         content:
  *           application/json:
  *             schema:
@@ -202,8 +247,34 @@ router.post(
  *                   description: Lista de usuários com detalhes de pedidos e produtos.
  *                   items:
  *                     type: object
- *       500:
- *         description: Erro interno do servidor.
+ *                     properties:
+ *                       user_id:
+ *                         type: number
+ *                       name:
+ *                         type: string
+ *                       orders:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             order_id:
+ *                               type: number
+ *                             total:
+ *                               type: number
+ *                             date:
+ *                               type: string
+ *                             products:
+ *                               type: array
+ *                               items:
+ *                                 type: object
+ *                                 properties:
+ *                                   product_id:
+ *                                     type: number
+ *                                   value:
+ *                                     type: number
+ *
+ *       '500':
+ *         description: Erro interno do servidor durante o processamento da solicitação.
  *         content:
  *           application/json:
  *             schema:
@@ -211,14 +282,18 @@ router.post(
  *               properties:
  *                 error:
  *                   type: string
- *                   description: Mensagem de erro.
+ *                   description: Mensagem de erro indicando um problema durante o processamento da solicitação.
  */
+
 router.get("/list", async (req: Request, res: Response) => {
   try {
-    const users = await prismaContext.user.findMany({
+    const users: UsersWithOrders[] = await prismaContext.user.findMany({
       include: {
         orders: {
-          include: {
+          select: {
+            order_id: true,
+            date: true,
+            total: true,
             products: {
               select: {
                 value: true,
