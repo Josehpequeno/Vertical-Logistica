@@ -114,5 +114,5 @@ Esta tabela armazena informações sobre os pedidos feitos pelos usuários e pos
 ### Relacionamentos
 
 - A tabela `Users` tem um relacionamento de um para muitos com a tabela `Orders`. Cada usuário pode ter vários pedidos.
-- A tabela `Orders` tem um relacionamento de muitos para muitos com a tabela `ProductOrders`. Um pedido pode conter vários produtos e um produto pode estar em vários pedidos.
+- A tabela `Orders` tem um relacionamento de um para muitos com a tabela `ProductOrders`. Um pedido pode conter vários produtos.
 
