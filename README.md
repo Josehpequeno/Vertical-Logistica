@@ -91,7 +91,7 @@ Esta tabela armazena informações sobre os produtos disponíveis no sistema.
 
 ### Tabela `ProductOrders`
 
-Esta tabela armazena informações sobre os produtos já pedido relacionados a tabela `Orders` com quem possui um relacionamento de muitos para muitos.
+Esta tabela armazena informações sobre os produtos já pedido relacionados a tabela `Orders` com quem possui um relacionamento de muitos para um.
 
 | Campo       | Tipo    | Descrição                  |
 |-------------|---------|----------------------------|
