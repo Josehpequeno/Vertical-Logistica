@@ -2,6 +2,15 @@
 
 Este é um desafio técnico para o projeto Vertical-Logistica, que visa desenvolver um sistema de gerenciamento de pedidos, usuários e produtos para uma empresa de logística.
 
+## Ferramentas
+
+- Typescript
+- ExpressJS
+- Prisma ORM 
+- PostgreSQL
+- Jest
+- Swagger
+
 ## Rodando o projeto
 Use a imagem docker ou clone o repositório.
 - Docker

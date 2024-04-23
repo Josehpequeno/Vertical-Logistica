@@ -4,7 +4,6 @@ COPY package.json ./
 COPY tsconfig.json ./
 COPY src ./src
 COPY prisma ./prisma
-RUN ls -a
 RUN npm install
 
 # Atualize os pacotes e instale o PostgreSQL
